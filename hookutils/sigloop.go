@@ -15,6 +15,7 @@ type sigLoop struct {
 	// It is recommended to use this hook to register exit handlers
 	// instead of adding a hook for each individual exit signal.
 	exitHook *hook
+	exiting  bool
 	mu       sync.Mutex
 }
 
@@ -62,25 +63,36 @@ func (s *sigLoop) Loop() {
 
 	for {
 		sig := <-sigchan
+		if s.exiting {
+			return
+		}
 		if hook, ok := s.hooks[sig.(syscall.Signal)]; ok {
 			hook.Exec()
 		}
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
-			if s.exitHook != nil {
-				s.exitHook.Exec()
-			}
-			for sig := range s.hooks {
-				switch sig {
-				case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
-				default:
-					signal.Reset(sig)
-				}
-			}
-			signal.Reset(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-			os.Exit(0)
+			s.Exit(0)
 		}
 	}
+}
+
+func (s *sigLoop) Exit(code int) {
+	if s.exiting {
+		return
+	}
+	s.exiting = true
+	if s.exitHook != nil {
+		s.exitHook.Exec()
+	}
+	for sig := range s.hooks {
+		switch sig {
+		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+		default:
+			signal.Reset(sig)
+		}
+	}
+	signal.Reset(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	os.Exit(code)
 }
 
 var defaultSigLoop *sigLoop
