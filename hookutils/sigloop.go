@@ -1,6 +1,7 @@
 package hookutils
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,7 +11,11 @@ import (
 
 type sigLoop struct {
 	hooks map[syscall.Signal]*hook
-	mu    sync.Mutex
+	// Hook for all exit signals (SIGINT, SIGTERM, and SIGQUIT).
+	// It is recommended to use this hook to register exit handlers
+	// instead of adding a hook for each individual exit signal.
+	exitHook *hook
+	mu       sync.Mutex
 }
 
 func (s *sigLoop) Handle(sig syscall.Signal, h *hook) error {
@@ -23,11 +28,25 @@ func (s *sigLoop) Handle(sig syscall.Signal, h *hook) error {
 	return nil
 }
 
+func (s *sigLoop) HandleExit(h *hook) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.exitHook != nil {
+		return errors.New("exit hook is already exists")
+	}
+	s.exitHook = h
+	return nil
+}
+
 func (s *sigLoop) Get(sig syscall.Signal) *hook {
 	if hook, ok := s.hooks[sig]; ok {
 		return hook
 	}
 	return nil
+}
+
+func (s *sigLoop) GetExit() *hook {
+	return s.exitHook
 }
 
 func (s *sigLoop) Loop() {
@@ -48,6 +67,9 @@ func (s *sigLoop) Loop() {
 		}
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+			if s.exitHook != nil {
+				s.exitHook.Exec()
+			}
 			for sig := range s.hooks {
 				switch sig {
 				case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
