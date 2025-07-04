@@ -61,6 +61,15 @@ func (s *sigLoop) Loop() {
 	}
 }
 
+var defaultSigLoop *sigLoop
+
 func NewSigLoop() *sigLoop {
 	return &sigLoop{hooks: make(map[syscall.Signal]*hook)}
+}
+
+func DefaultSigLoop() *sigLoop {
+	if defaultSigLoop == nil {
+		defaultSigLoop = NewSigLoop()
+	}
+	return defaultSigLoop
 }
