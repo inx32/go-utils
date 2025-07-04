@@ -80,7 +80,9 @@ func (s *sigLoop) Exit(code int) {
 	if s.exiting {
 		return
 	}
+	s.mu.Lock()
 	s.exiting = true
+	s.mu.Unlock()
 	if s.exitHook != nil {
 		s.exitHook.Exec()
 	}
