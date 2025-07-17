@@ -5,13 +5,14 @@ import "sync"
 // Thread-safe map
 type Cmap[K comparable, V any] interface {
 	Set(key K, value V)
+	SetFunc(key K, f func(value V, ex bool) V)
 	Remove(key K)
-	Get(key K) (value V, exists bool)
+	Get(key K) (value V, ex bool)
 	GetDefault(key K, def V) (value V)
-	Has(K) (exists bool)
-	Keys() (iterator <-chan K)
-	Values() (iterator <-chan V)
-	Range() (iterator <-chan CmapField[K, V])
+	Has(key K) (ex bool)
+	Keys() <-chan K
+	Values() <-chan V
+	Range() <-chan CmapField[K, V]
 }
 
 type cmapImpl[K comparable, V any] struct {
@@ -23,6 +24,11 @@ func (t *cmapImpl[K, V]) Set(k K, v V) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.m[k] = v
+}
+
+func (t *cmapImpl[K, V]) SetFunc(k K, f func(V, bool) V) {
+	val, ok := t.Get(k)
+	t.Set(k, f(val, ok))
 }
 
 func (t *cmapImpl[K, V]) Remove(k K) {
