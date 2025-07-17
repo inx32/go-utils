@@ -168,7 +168,12 @@ func (t *proxyImpl) RoundTrip(req *http.Request) (*http.Response, error) {
 //
 
 func New(scheme, hostport string, opts ...ProxyOpt) (Proxy, error) {
-	proxy := &proxyImpl{}
+	proxy := &proxyImpl{
+		scheme:   scheme,
+		hostport: hostport,
+		forward:  netproxy.Direct,
+	}
+
 	for _, opt := range opts {
 		opt(proxy)
 	}
