@@ -1,4 +1,4 @@
-package hookutils
+package hooks
 
 type hookNotifyBuilder struct {
 	c HookNotify
