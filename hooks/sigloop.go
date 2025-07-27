@@ -37,6 +37,29 @@ type SigLoop interface {
 
 	// Loop starts listening for signals or Exit.
 	// If an exit signal is received (SIGINT, SIGTERM or SIGQUIT), the program will exit.
+	//
+	// You should run Loop inside main function. Correct example:
+	//
+	//	func main() {
+	//		loop := hooks.DefaultSigLoop()
+	//		loop.GetOrHandle(syscall.SIGHUP).Handle(&hooks.HookFunc{
+	//			Func: func() {
+	//				fmt.Println("sighup: reloading config")
+	//				config.Reload()
+	//			},
+	//			Name: "reload_config",
+	//			Weight: 1000,
+	//		})
+	//
+	//		loop.Loop() // locks main function
+	// 	}
+	//
+	// Wrong example:
+	//
+	//	func main() {
+	//		...
+	//		go loop.Loop() // <- WRONG! Don't run Loop() in a new goroutine.
+	//	}
 	Loop()
 
 	// Exit runs the exit [Hook] and stops the program with a specified code.
