@@ -9,17 +9,57 @@ import (
 	"syscall"
 )
 
-type sigLoop struct {
-	hooks map[syscall.Signal]*hook
+type SigLoop interface {
+	// Handle registers a [Hook] for specific signal.
+	// If a hook for a signal has already been registered, Handle will return an error.
+	Handle(sig syscall.Signal, h Hook) error
+
+	// HandleExit registers a program exit [Hook].
+	// It is better to register a program exit hook than to register hook for each signal.
+	// If the exit hook has already been registered, HandleExit will return an error.
+	HandleExit(h Hook) error
+
+	// Get returns [Hook] for the signal.
+	// If the hook for the signal is not registered, Get will return <nil>.
+	Get(sig syscall.Signal) Hook
+
+	// GetOrHandle returns a [Hook] for the signal.
+	// Unlike Get, GetOrHandle registers a hook for a signal if not registered.
+	GetOrHandle(sig syscall.Signal) Hook
+
+	// Get returns a program exit [Hook].
+	// If the exit hook is not registered, GetExit will return <nil>.
+	GetExit() Hook
+
+	// GetExitOrHandle returns a program exit [Hook].
+	// Unlike GetExit, GetExitOrHandle registers a exit hook if not registered.
+	GetExitOrHandle() Hook
+
+	// Loop starts listening for signals or Exit.
+	// If an exit signal is received (SIGINT, SIGTERM or SIGQUIT), the program will exit.
+	Loop()
+
+	// Exit runs the exit [Hook] and stops the program with a specified code.
+	// Exit will NOT trigger any signals. Use HandleExit to handle program exit.
+	Exit(code int)
+}
+
+var _ SigLoop = (*sigLoopImpl)(nil)
+
+type sigLoopImpl struct {
+	hooks map[syscall.Signal]Hook
 	// Hook for all exit signals (SIGINT, SIGTERM, and SIGQUIT).
 	// It is recommended to use this hook to register exit handlers
 	// instead of adding a hook for each individual exit signal.
-	exitHook *hook
+	exitHook Hook
 	exiting  bool
 	mu       sync.Mutex
 }
 
-func (s *sigLoop) Handle(sig syscall.Signal, h *hook) error {
+func (s *sigLoopImpl) Handle(sig syscall.Signal, h Hook) error {
+	if h == nil {
+		return errors.New("hook is nil")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.hooks[sig]; ok {
@@ -29,7 +69,10 @@ func (s *sigLoop) Handle(sig syscall.Signal, h *hook) error {
 	return nil
 }
 
-func (s *sigLoop) HandleExit(h *hook) error {
+func (s *sigLoopImpl) HandleExit(h Hook) error {
+	if h == nil {
+		return errors.New("hook is nil")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.exitHook != nil {
@@ -39,18 +82,35 @@ func (s *sigLoop) HandleExit(h *hook) error {
 	return nil
 }
 
-func (s *sigLoop) Get(sig syscall.Signal) *hook {
+func (s *sigLoopImpl) Get(sig syscall.Signal) Hook {
 	if hook, ok := s.hooks[sig]; ok {
 		return hook
 	}
 	return nil
 }
 
-func (s *sigLoop) GetExit() *hook {
+func (s *sigLoopImpl) GetOrHandle(sig syscall.Signal) Hook {
+	h := s.Get(sig)
+	if h == nil {
+		h = NewHook(sig.String(), fmt.Sprintf("Handle signal %d \"%s\"", sig, sig.String()))
+		s.Handle(sig, h)
+	}
+	return h
+}
+
+func (s *sigLoopImpl) GetExit() Hook {
 	return s.exitHook
 }
 
-func (s *sigLoop) Loop() {
+func (s *sigLoopImpl) GetExitOrHandle() Hook {
+	if s.exitHook != nil {
+		return s.exitHook
+	}
+	s.HandleExit(NewHook("exit", "Handle exit"))
+	return s.exitHook
+}
+
+func (s *sigLoopImpl) Loop() {
 	sigchan := make(chan os.Signal, 1)
 	for sig := range s.hooks {
 		switch sig {
@@ -76,7 +136,7 @@ func (s *sigLoop) Loop() {
 	}
 }
 
-func (s *sigLoop) Exit(code int) {
+func (s *sigLoopImpl) Exit(code int) {
 	if s.exiting {
 		return
 	}
@@ -97,13 +157,13 @@ func (s *sigLoop) Exit(code int) {
 	os.Exit(code)
 }
 
-var defaultSigLoop *sigLoop
+var defaultSigLoop SigLoop
 
-func NewSigLoop() *sigLoop {
-	return &sigLoop{hooks: make(map[syscall.Signal]*hook)}
+func NewSigLoop() SigLoop {
+	return &sigLoopImpl{hooks: make(map[syscall.Signal]Hook)}
 }
 
-func DefaultSigLoop() *sigLoop {
+func DefaultSigLoop() SigLoop {
 	if defaultSigLoop == nil {
 		defaultSigLoop = NewSigLoop()
 	}
