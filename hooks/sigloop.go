@@ -64,6 +64,8 @@ type SigLoop interface {
 
 	// Exit runs the exit [Hook] and stops the program with a specified code.
 	// Exit will NOT trigger any signals. Use HandleExit to handle program exit.
+	//
+	// Exit can be used before Loop.
 	Exit(code int)
 }
 
