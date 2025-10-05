@@ -34,3 +34,16 @@ func (o *onceMapImpl) BoolOnce(name string) bool     { return o.Get(name).Bool()
 func (o *onceMapImpl) ResetOnce(name string)         { o.Get(name).Reset() }
 func (o *onceMapImpl) RunOnce(name string, f func()) { o.Get(name).Run(f) }
 func (o *onceMapImpl) GoOnce(name string, f func())  { o.Get(name).Go(f) }
+
+var defaultOnceMap OnceMap
+
+func NewOnceMap() OnceMap {
+	return &onceMapImpl{onces: make(map[string]Once)}
+}
+
+func DefaultOnceMap() OnceMap {
+	if defaultOnceMap == nil {
+		defaultOnceMap = NewOnceMap()
+	}
+	return defaultOnceMap
+}
