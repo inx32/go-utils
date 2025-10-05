@@ -44,6 +44,6 @@ func (o *onceImpl) Go(f func()) {
 	}
 }
 
-func NewOnce() Once {
+func New() Once {
 	return &onceImpl{cond: true}
 }

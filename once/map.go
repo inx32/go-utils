@@ -2,7 +2,7 @@ package once
 
 import "sync"
 
-type OnceMap interface {
+type Map interface {
 	Get(string) Once
 	BoolOnce(string) bool
 	ResetOnce(string)
@@ -10,7 +10,7 @@ type OnceMap interface {
 	GoOnce(string, func())
 }
 
-var _ OnceMap = (*onceMapImpl)(nil)
+var _ Map = (*onceMapImpl)(nil)
 
 type onceMapImpl struct {
 	mu    sync.RWMutex
@@ -24,7 +24,7 @@ func (o *onceMapImpl) Get(name string) Once {
 	if !ok {
 		o.mu.RUnlock()
 		o.mu.Lock()
-		once = NewOnce()
+		once = New()
 		o.onces[name] = once
 		o.mu.Unlock()
 		o.mu.RLock()
@@ -37,15 +37,15 @@ func (o *onceMapImpl) ResetOnce(name string)         { o.Get(name).Reset() }
 func (o *onceMapImpl) RunOnce(name string, f func()) { o.Get(name).Run(f) }
 func (o *onceMapImpl) GoOnce(name string, f func())  { o.Get(name).Go(f) }
 
-var defaultOnceMap OnceMap
+var defaultOnceMap Map
 
-func NewOnceMap() OnceMap {
+func NewMap() Map {
 	return &onceMapImpl{onces: make(map[string]Once)}
 }
 
-func DefaultOnceMap() OnceMap {
+func DefaultMap() Map {
 	if defaultOnceMap == nil {
-		defaultOnceMap = NewOnceMap()
+		defaultOnceMap = NewMap()
 	}
 	return defaultOnceMap
 }
