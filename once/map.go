@@ -22,10 +22,12 @@ func (o *onceMapImpl) Get(name string) Once {
 	defer o.mu.RUnlock()
 	once, ok := o.onces[name]
 	if !ok {
+		o.mu.RUnlock()
 		o.mu.Lock()
 		once = NewOnce()
 		o.onces[name] = once
 		o.mu.Unlock()
+		o.mu.RLock()
 	}
 	return once
 }
